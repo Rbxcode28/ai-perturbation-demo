@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Adversarial Image Perturbation Demo</title>
+  <script src="https://unpkg.com"></script>
+  <script src="https://unpkg.com"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; max-width: 900px; margin: 0 auto; padding: 24px; }
+    h1 { text-align: center; margin-bottom: 8px; }
+    p.sub { text-align: center; color: #94a3b8; margin-bottom: 24px; }
+    .card { background: #1e293b; border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-bottom: 20px; }
+    button, label.upload-btn { background: #3b82f6; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; }
+    button:hover, label.upload-btn:hover { background: #2563eb; }
+    button.poison { background: #ef4444; }
+    button.poison:hover { background: #dc2626; }
+    input[type="file"] { display: none; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: center; }
+    @media (max-width: 650px) { .grid { grid-template-columns: 1fr; } }
+    img#preview { width: 100%; max-height: 360px; object-fit: contain; border-radius: 8px; background: #0f172a; border: 1px solid #334155; }
+    .result-box { background: #0f172a; padding: 16px; border-radius: 8px; border: 1px solid #334155; }
+    .bar-wrap { margin-bottom: 12px; }
+    .bar-label { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; }
+    .bar-bg { background: #334155; height: 10px; border-radius: 5px; overflow: hidden; }
+    .bar-fill { background: #22c55e; height: 100%; transition: width 0.3s; }
+    #status { text-align: center; color: #38bdf8; font-size: 14px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h1>AI Image Perturbation Demo</h1>
+  <p class="sub">Compare our clean image vs. perturbed image, or upload any photo to test the AI vision model.</p>
+
+  <div class="card">
+    <div id="status">Initializing TensorFlow.js MobileNet...</div>
+
+    <div class="controls">
+      <button onclick="loadPreset('hd_clean.png')">1. Test Clean Image</button>
+      <button class="poison" onclick="loadPreset('hd_perturbed.png')">2. Test Perturbed Image</button>
+      <label class="upload-btn">
+        3. Upload Your Own Image
+        <input type="file" id="fileInput" accept="image/*" />
+      </label>
+    </div>
+
+    <div class="grid">
+      <div>
+        <img id="preview" src="hd_clean.png" crossorigin="anonymous" alt="Preview" />
+      </div>
+      <div class="result-box">
+        <h3 style="margin-top:0;">Top AI Predictions</h3>
+        <div id="predictions">Waiting for model...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const previewEl = document.getElementById('preview');
+    const predsEl = document.getElementById('predictions');
+    let net = null;
+
+    async function init() {
+      try {
+        if (typeof mobilenet === 'undefined') {
+          throw new Error('Scripts blocked by network. Try refreshing or switching network.');
+        }
+        net = await mobilenet.load({ version: 2, alpha: 1.0 });
+        statusEl.textContent = 'AI Vision Model Ready! Click a button above or upload an image.';
+        runClassification();
+      } catch (err) {
+        statusEl.style.color = '#f87171';
+        statusEl.textContent = 'Error: ' + err.message;
+      }
+    }
+
+    async function runClassification() {
+      if (!net) return;
+      predsEl.innerHTML = 'Analyzing image...';
+      try {
+        const results = await net.classify(previewEl, 3);
+        predsEl.innerHTML = results.map(r => {
+          const cleanLabel = r.className.split(',').at(0);
+          const pct = (r.probability * 100).toFixed(1);
+          return `
+            <div class="bar-wrap">
+              <div class="bar-label">
+                <span>${cleanLabel}</span>
+                <span>${pct}%</span>
+              </div>
+              <div class="bar-bg">
+                <div class="bar-fill" style="width: ${pct}%"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        predsEl.innerHTML = 'Prediction error: ' + err.message;
+      }
+    }
+
+    window.loadPreset = (filename) => {
+      previewEl.onload = () => runClassification();
+      previewEl.src = filename;
+    };
+
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        previewEl.onload = () => runClassification();
+        previewEl.src = reader.result;
+      };
+      reader.readAsDataURL(files.item(0));
+    });
+
+    window.addEventListener('load', init);
+  </script>
+</body>
+</html>
